@@ -269,7 +269,7 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 				}
 			}
 			else if (lambda.getBody() instanceof ExpressionStmt) {
-				ExpressionStmt exp = (ExpressionStmt)lambda.getBody();
+				ExpressionStmt exp = (ExpressionStmt)lambda.getBody().clone();
 				lst.add(new ReturnStmt(exp.getExpression()));
 			}
 			else {
