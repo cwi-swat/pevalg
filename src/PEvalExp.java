@@ -1,13 +1,29 @@
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
+
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticCollector;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaCompiler.CompilationTask;
+import javax.tools.JavaFileObject;
+import javax.tools.SimpleJavaFileObject;
+import javax.tools.ToolProvider;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ast.CompilationUnit;
@@ -61,8 +77,10 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 	public static void main(String[] args) throws IOException {
 		PEvalExp peval = new PEvalExp(EvalExp.class);
 		MethodDeclaration top = someExp(peval);
-		ClassOrInterfaceDeclaration clz = new ClassOrInterfaceDeclaration();
-		clz.setName("EvalExp$PE");
+		CompilationUnit cu = new CompilationUnit();
+		cu.addImport(Map.class);
+		
+		ClassOrInterfaceDeclaration clz = cu.addClass("EvalExp$PE");
 		clz.addModifier(Modifier.PUBLIC);
 		clz.addImplements(IEval.class);
 		for (MethodDeclaration m2: peval.prog) {
@@ -80,7 +98,53 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 		ReturnStmt ret = new ReturnStmt(topCall);
 		entry.setBody(new BlockStmt(Collections.singletonList(ret)));
 		clz.addMember(entry);
-		System.out.println(clz);
+		cu.getImports().removeIf(id -> !id.getName().toString().contains("."));
+		System.out.println(cu);
+		
+		
+		// Compilation
+		JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+	    DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<JavaFileObject>();
+	    StringWriter writer = new StringWriter();
+	    PrintWriter out = new PrintWriter(writer);
+	    out.write(cu.toString());
+		JavaFileObject file = new JavaSourceFromString("EvalExp$PE", writer.toString());
+	    Iterable<? extends JavaFileObject> compilationUnits = Arrays.asList(file);
+	    CompilationTask task = compiler.getTask(null, null, diagnostics, null, null, compilationUnits);
+	    
+	    boolean success = task.call();
+	    
+	    for (Diagnostic diagnostic : diagnostics.getDiagnostics()) {
+	      System.out.println(diagnostic.getCode());
+	      System.out.println(diagnostic.getKind());
+	      System.out.println(diagnostic.getPosition());
+	      System.out.println(diagnostic.getStartPosition());
+	      System.out.println(diagnostic.getEndPosition());
+	      System.out.println(diagnostic.getSource());
+	      System.out.println(diagnostic.getMessage(null));
+
+	    }
+	    System.out.println("Success: " + success);
+	    if (success) {
+	        try {
+
+	            URLClassLoader classLoader = URLClassLoader.newInstance(new URL[] { new File("").toURI().toURL() });
+	            Object o = Class.forName("EvalExp$PE", true, classLoader).newInstance();
+	            Object r = Class.forName("EvalExp$PE", true, classLoader).getDeclaredMethod("eval", new Class[] { Map.class }).invoke(o, new Object[] { null });
+	            System.out.println("The Result is: " + r);
+	        } catch (ClassNotFoundException e) {
+	          System.err.println("Class not found: " + e);
+	        } catch (NoSuchMethodException e) {
+	          System.err.println("No such method: " + e);
+	        } catch (IllegalAccessException e) {
+	          System.err.println("Illegal access: " + e);
+	        } catch (InvocationTargetException e) {
+	          System.err.println("Invocation target: " + e);
+	        } catch (InstantiationException e) {
+	          System.err.println("Instantiation: " + e);
+			}
+	      }
+	    
 	}
 	
 	static <E> E someExp(ExpAlg<E> alg) {
@@ -228,6 +292,8 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 				MethodDeclaration m = (MethodDeclaration)val;
 				MethodCallExpr call = new MethodCallExpr();
 				//call.setArgs(args); // this must be env etc.
+				call.setArgs(((MethodDeclaration) val).getParameters().stream().map(p -> new NameExpr(p.getName()))
+														.collect(Collectors.toList()));
 				call.setName(m.getName());
 				return call;
 			}
@@ -283,4 +349,18 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 		}
 	}
 	
+}
+
+class JavaSourceFromString extends SimpleJavaFileObject {
+	  final String code;
+
+	  JavaSourceFromString(String name, String code) {
+	    super(URI.create("string:///" + name.replace('.','/') + Kind.SOURCE.extension),Kind.SOURCE);
+	    this.code = code;
+	  }
+
+	  @Override
+	  public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+	    return code;
+	  }
 }
