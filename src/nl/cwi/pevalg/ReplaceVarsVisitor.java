@@ -117,6 +117,8 @@ public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 	public Node visit(CastExpr cast, Object[] args) {
 		if (cast.getType() instanceof ClassOrInterfaceType){
 			// TODO ugly hard-coding hack to deal with bad type inference of decompiler
+			// Link
+			// - https://bitbucket.org/mstrobel/procyon/issues/270/casting-issue-decompiled-code-doesnt
 			if (((ClassOrInterfaceType) cast.getType()).getName().equals("Env")){
 				return cast.getExpr();
 			}
