@@ -42,6 +42,8 @@ import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.stmt.ReturnStmt;
 import com.github.javaparser.ast.stmt.Statement;
+import com.github.javaparser.ast.type.ClassOrInterfaceType;
+import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.visitor.ModifierVisitorAdapter;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import com.strobel.decompiler.Decompiler;
@@ -92,9 +94,11 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 		entry.setType(Integer.class);
 		entry.setName("eval");
 		entry.addParameter(Map.class, "env");
+		entry.addParameter(Integer.class, "x");
 		MethodCallExpr topCall = new MethodCallExpr();
 		topCall.setName(top.getName());
 		topCall.addArgument(new NameExpr("env"));
+		topCall.addArgument(new NameExpr("x"));
 		ReturnStmt ret = new ReturnStmt(topCall);
 		entry.setBody(new BlockStmt(Collections.singletonList(ret)));
 		clz.addMember(entry);
@@ -130,7 +134,7 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 
 	            URLClassLoader classLoader = URLClassLoader.newInstance(new URL[] { new File("").toURI().toURL() });
 	            Object o = Class.forName("EvalExp$PE", true, classLoader).newInstance();
-	            Object r = Class.forName("EvalExp$PE", true, classLoader).getDeclaredMethod("eval", new Class[] { Map.class }).invoke(o, new Object[] { null });
+	            Object r = Class.forName("EvalExp$PE", true, classLoader).getDeclaredMethod("eval", new Class[] { Map.class, Integer.class }).invoke(o, new Object[] { null, null });
 	            System.out.println("The Result is: " + r);
 	        } catch (ClassNotFoundException e) {
 	          System.err.println("Class not found: " + e);
@@ -203,33 +207,68 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 	@Override
 	public MethodDeclaration Add(MethodDeclaration l, MethodDeclaration r) {
 		MethodDeclaration m = evalMethods.get("Add");
-		MethodDeclaration newM = peval("Add", m, l, r);
+		List<Type> formalTypes = getFormalTypes((ClassOrInterfaceType) m.getType());
+	    MethodDeclaration newM = peval("Add", m, formalTypes, l, r);
 		prog.add(newM);
 		return newM;
+	    
+	}
+	
+	private List<Type> getFormalTypes(ClassOrInterfaceType iface){
+		ClassOrInterfaceType functInterface = iface;
+		Class<?> clazz;
+		InputStream in = null;
+
+		try {
+			clazz = Class.forName(functInterface.getName());
+		
+			in = new ByteArrayInputStream(decompile(clazz).getBytes());
+		
+	    CompilationUnit cu = JavaParser.parse(in);
+	        ClassOrInterfaceDeclaration dec = cu.getInterfaceByName(functInterface.getName());
+	        List<Type> formalTypes = dec.getMethods().get(0).getParameters().stream().map(p -> p.getType()).collect(Collectors.toList());
+	        
+			return formalTypes;
+	    } catch (ClassNotFoundException e) {
+			throw new RuntimeException(e);
+		  
+	    } finally {
+	    	if (in != null) {
+	        try {
+				in.close();
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+	    	}
+	    }
 	}
 
 	@Override
 	public MethodDeclaration Lit(int n) {
 		MethodDeclaration m = evalMethods.get("Lit");
-		MethodDeclaration newM = peval("Lit", m, n);
+		//((ReturnStmt) m.getBody().getStmts().get(0)).getExpr()
+		List<Type> formalTypes = getFormalTypes((ClassOrInterfaceType) m.getType());
+	    MethodDeclaration newM = peval("Lit", m, formalTypes, n);
 		prog.add(newM);
 		return newM;
 	}
 
-	MethodDeclaration peval(String type, MethodDeclaration m, Object...args) {
+	MethodDeclaration peval(String type, MethodDeclaration m, List<Type> formalTypes, Object...args) {
 		MethodDeclaration newM = new MethodDeclaration();
 		String methodName = type + "_" + counter++;
 		newM.setName(methodName);
 		newM.addModifier(Modifier.STATIC, Modifier.PRIVATE);
-		m.accept(new ClosureVisitor(type, m.getParameters(), args), newM);
+		m.accept(new ClosureVisitor(type, m.getParameters(), formalTypes, args), newM);
 		return newM;
 	}
 	
 	private static class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 		private List<Parameter> formals;
+		private List<Parameter> closureFormals;
 
-		public ReplaceVarsVisitor(List<Parameter> formals) {
+		public ReplaceVarsVisitor(List<Parameter> formals, List<Parameter> closureFormals) {
 			this.formals = formals;
+			this.closureFormals = closureFormals;
 		}
 
 		Object formalToValue(String name, Object[] args) {
@@ -292,8 +331,8 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 				MethodDeclaration m = (MethodDeclaration)val;
 				MethodCallExpr call = new MethodCallExpr();
 				//call.setArgs(args); // this must be env etc.
-				call.setArgs(((MethodDeclaration) val).getParameters().stream().map(p -> new NameExpr(p.getName()))
-														.collect(Collectors.toList()));
+				call.setArgs(closureFormals.stream().map(p -> new NameExpr(p.getName()))
+					.collect(Collectors.toList()));
 				call.setName(m.getName());
 				return call;
 			}
@@ -314,18 +353,21 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 		private String type;
 		private Object[] args;
 		private List<Parameter> formals;
+		private List<Type> formalTypes;
 
-		public ClosureVisitor(String type, List<Parameter> formals, Object... args) {
+		public ClosureVisitor(String type, List<Parameter> formals, List<Type> formalTypes, Object... args) {
 			this.type = type;
 			this.formals = formals;
 			this.args = args;
+			this.formalTypes = formalTypes;
 		}
 		
 		@Override
 		public void visit(LambdaExpr lambda, MethodDeclaration newMethod) {
 			List<Parameter> params = lambda.getParameters();
-			for (Parameter p: params) {
-				p.setType(Map.class); // todo: needs to come from outside.
+			for (int i = 0; i< params.size(); i++) {
+				//params.get(i).setType(Map.class); // todo: needs to come from outside.
+				params.get(i).setType(formalTypes.get(i));
 			}
 			newMethod.setParameters(params);
 			List<Statement> lst = new ArrayList<>();
@@ -342,7 +384,7 @@ public class PEvalExp implements ExpAlg<MethodDeclaration>{
 				throw new RuntimeException("unhandled lambda body " + lambda.getBody());
 			}
 			BlockStmt body = new BlockStmt(lst);
-			body.accept(new ReplaceVarsVisitor(formals), args);
+			body.accept(new ReplaceVarsVisitor(formals, params), args);
 			newMethod.setBody(body);
 			newMethod.setElementType(Integer.class);
 			

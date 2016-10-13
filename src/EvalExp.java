@@ -10,12 +10,12 @@ public class EvalExp implements ExpAlg<IEval> {
 	
 	@Override
 	public IEval Add(IEval l, IEval r) {
-		return (Map<String, Integer> env) -> { return l.eval(env) + r.eval(env); };
+		return (Map<String, Integer> env, Integer z) -> { return l.eval(env, z) + r.eval(env, z); };
 	}
 
 	@Override
 	public IEval Lit(int n) {
-		return (Map<String, Integer> env) -> { return n; };
+		return (Map<String, Integer> env, Integer y) -> { return n; };
 	}
 
 //	@Override
