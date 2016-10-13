@@ -34,9 +34,10 @@ public class CUnitCompiler {
 		StringWriter writer = new StringWriter();
 		PrintWriter out = new PrintWriter(writer);
 		out.write(code.toString());
+		String className = code.getChildrenNodes().stream().filter(n -> n instanceof ClassOrInterfaceDeclaration)
+			.map(n -> ((ClassOrInterfaceDeclaration) n).getName()).findFirst().get();
 		JavaFileObject file = new JavaSourceFromString(
-				code.getChildrenNodes().stream().filter(n -> n instanceof ClassOrInterfaceDeclaration)
-						.map(n -> ((ClassOrInterfaceDeclaration) n).getName()).findFirst().get(),
+				className,
 				writer.toString());
 		Iterable<? extends JavaFileObject> compilationUnits = Arrays.asList(file);
 		CompilationTask task = compiler.getTask(null, null, diagnostics, null, null, compilationUnits);
@@ -58,14 +59,14 @@ public class CUnitCompiler {
 			try {
 
 				URLClassLoader classLoader = URLClassLoader.newInstance(new URL[] { new File("").toURI().toURL() });
-				Object o = Class.forName("EvalExp$PE", true, classLoader).newInstance();
+				Object o = Class.forName(className, true, classLoader).newInstance();
 				return (T) Proxy.newProxyInstance(CUnitCompiler.class.getClassLoader(), new Class<?>[] { iface },
 						new InvocationHandler() {
 
 							@Override
 							public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 								Method theMethod = Arrays
-										.stream(Class.forName("EvalExp$PE", true, classLoader).getDeclaredMethods())
+										.stream(Class.forName(className, true, classLoader).getDeclaredMethods())
 										.filter(m -> m.getName().equals(method.getName())).findFirst().get();
 								if (method == null)
 									throw new NoSuchMethodException(method.getName());

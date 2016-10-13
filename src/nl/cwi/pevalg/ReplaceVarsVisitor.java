@@ -114,6 +114,17 @@ public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 		throw new NoSuchElementException();
 	}
 	
+	public Node visit(CastExpr cast, Object[] args) {
+		if (cast.getType() instanceof ClassOrInterfaceType){
+			// TODO ugly hard-coding hack to deal with bad type inference of decompiler
+			if (((ClassOrInterfaceType) cast.getType()).getName().equals("Env")){
+				return cast.getExpr();
+			}
+			
+		}
+		return cast;
+	}
+	
 	@Override
 	public Node visit(MethodCallExpr call, Object[] args) {
 		System.out.println(call);
@@ -124,6 +135,8 @@ public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 		System.out.println(call.getScope().getClass());
 		System.out.println(((NameExpr)call.getScope()).getName());
 		System.out.println(formals);
+		List<Expression> newArgs = call.getArgs().stream().map(a -> (Expression) a.accept(this, args)).collect(Collectors.toList());
+		call.setArgs(newArgs);
 		if (call.getScope() instanceof NameExpr) {
 			// TODO: && call.getName().equals(eval);
 			// and getScope() is one of the static paarms.
@@ -137,7 +150,7 @@ public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 			try {
 				Object val = formalToValue(((NameExpr)call.getScope()).getName(), args);
 				System.out.println("VAL = " + val);
-				return val2node(val); 
+				return val2node(val, newArgs); 
 			}
 			catch (NoSuchElementException e) {
 				System.err.println("error " + e);
@@ -159,14 +172,15 @@ public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 		return n;
 	}
 
-	private Expression val2node(Object val) {
+	private Expression val2node(Object val, List<Expression>... newArgs) {
 		if (val instanceof MethodDeclaration) {
 			// construct a call
 			MethodDeclaration m = (MethodDeclaration)val;
 			MethodCallExpr call = new MethodCallExpr();
 			//call.setArgs(args); // this must be env etc.
-			call.setArgs(closureFormals.stream().map(p -> new NameExpr(p.getName()))
-				.collect(Collectors.toList()));
+			//call.setArgs(closureFormals.stream().map(p -> new NameExpr(p.getName()))
+			//	.collect(Collectors.toList()));
+			call.setArgs(newArgs[0]);
 			call.setName(m.getName());
 			return call;
 		}

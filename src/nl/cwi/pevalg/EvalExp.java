@@ -21,12 +21,13 @@ public class EvalExp implements ExpAlg<IEval> {
 
 //	@Override
 //	public IEval Let(String x, IEval exp, IEval body) {
-//		return null;
-//	}
+//		return (Map<String, Integer> env, Integer y) -> { 
+//			body.eval(env , y)
+//		}
 //
 //	@Override
 //	public IEval Var(String x) {
-//		return null;
+//		return (Map<String, Integer> env, Integer y) -> { return env.get(x); };
 //	}
 
 }

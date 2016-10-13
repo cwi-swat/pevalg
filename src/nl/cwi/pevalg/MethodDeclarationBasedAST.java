@@ -33,6 +33,7 @@ public class MethodDeclarationBasedAST implements AST {
 		CompilationUnit cu = new CompilationUnit();
 		// TODO this should not be hard-coded
 		cu.addImport(Map.class);
+		cu.addImport(Env.class);
 
 		ClassOrInterfaceDeclaration clz = cu.addClass(programName + "$PE");
 		clz.addModifier(Modifier.PUBLIC);

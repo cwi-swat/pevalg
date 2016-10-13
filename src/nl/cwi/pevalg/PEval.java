@@ -63,7 +63,7 @@ public class PEval implements InvocationHandler {
 	protected Object dispatchOn(String operation, Object[] args) {
 		MethodDeclaration m = evalMethods.get(operation);
 		//((ReturnStmt) m.getBody().getStmts().get(0)).getExpr()
-		MethodDeclaration newM = peval("Lit", m, args);
+		MethodDeclaration newM = peval(operation, m, args);
 		prog.add(newM);
 		return new MethodDeclarationBasedAST(newM, prog);
 	}
