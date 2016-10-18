@@ -7,6 +7,8 @@ import java.io.StringWriter;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,8 @@ public class PEval implements InvocationHandler {
 	private Map<String, MethodDeclaration> evalMethods = new HashMap<>();;
 	private List<MethodDeclaration> prog = new ArrayList<>();
 	private List<Type<?>> paramTypes;
+	private Map<String, List<String>> stacks = new HashMap<>();
+	private Map<String, List<String>> dependencies = new HashMap<>();
 	
 	public PEval(Class<?> evAlg, Class<?> carrier) throws IOException {
 		InputStream inEv = new ByteArrayInputStream(decompile(evAlg).getBytes());
@@ -64,7 +68,6 @@ public class PEval implements InvocationHandler {
 		MethodDeclaration m = evalMethods.get(operation);
 		//((ReturnStmt) m.getBody().getStmts().get(0)).getExpr()
 		MethodDeclaration newM = peval(operation, m, args);
-		prog.add(newM);
 		return new MethodDeclarationBasedAST(newM, prog);
 	}
 	
@@ -73,7 +76,12 @@ public class PEval implements InvocationHandler {
 		String methodName = type + "_" + counter++;
 		newM.setName(methodName);
 		newM.addModifier(Modifier.STATIC, Modifier.PRIVATE);
-		m.accept(new ClosureVisitor(type, m.getParameters(), paramTypes, args), newM);
+		ClosureVisitor cv = new ClosureVisitor(type, methodName, m.getParameters(), paramTypes, stacks, dependencies, args);
+		m.accept(cv, newM);
+		
+		List<String> stack = cv.getVars().stream().sorted().collect(Collectors.toList());
+		stacks.put(methodName,stack);
+		prog.add(newM);
 		return newM;
 	}
 	

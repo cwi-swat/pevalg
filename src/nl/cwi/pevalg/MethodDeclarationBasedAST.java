@@ -55,7 +55,7 @@ public class MethodDeclarationBasedAST implements AST {
 			entry.addParameter(p.getType(), p.getName());
 		MethodCallExpr topCall = new MethodCallExpr();
 		topCall.setName(top.getName());
-		for (Parameter p : method.getParameters())
+		for (com.github.javaparser.ast.body.Parameter p : top.getParameters())
 			topCall.addArgument(new NameExpr(p.getName()));
 		ReturnStmt ret = new ReturnStmt(topCall);
 		entry.setBody(new BlockStmt(Collections.singletonList(ret)));

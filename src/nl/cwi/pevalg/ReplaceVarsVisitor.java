@@ -1,108 +1,40 @@
 package nl.cwi.pevalg;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
-import com.github.javaparser.ast.ArrayBracketPair;
-import com.github.javaparser.ast.ArrayCreationLevel;
-import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.Node;
-import com.github.javaparser.ast.PackageDeclaration;
-import com.github.javaparser.ast.body.AnnotationDeclaration;
-import com.github.javaparser.ast.body.AnnotationMemberDeclaration;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.ConstructorDeclaration;
-import com.github.javaparser.ast.body.EmptyMemberDeclaration;
-import com.github.javaparser.ast.body.EmptyTypeDeclaration;
-import com.github.javaparser.ast.body.EnumConstantDeclaration;
-import com.github.javaparser.ast.body.EnumDeclaration;
-import com.github.javaparser.ast.body.FieldDeclaration;
-import com.github.javaparser.ast.body.InitializerDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
-import com.github.javaparser.ast.body.VariableDeclarator;
-import com.github.javaparser.ast.body.VariableDeclaratorId;
-import com.github.javaparser.ast.comments.BlockComment;
-import com.github.javaparser.ast.comments.JavadocComment;
-import com.github.javaparser.ast.comments.LineComment;
-import com.github.javaparser.ast.expr.ArrayAccessExpr;
-import com.github.javaparser.ast.expr.ArrayCreationExpr;
-import com.github.javaparser.ast.expr.ArrayInitializerExpr;
-import com.github.javaparser.ast.expr.AssignExpr;
-import com.github.javaparser.ast.expr.BinaryExpr;
-import com.github.javaparser.ast.expr.BooleanLiteralExpr;
 import com.github.javaparser.ast.expr.CastExpr;
-import com.github.javaparser.ast.expr.CharLiteralExpr;
 import com.github.javaparser.ast.expr.ClassExpr;
-import com.github.javaparser.ast.expr.ConditionalExpr;
-import com.github.javaparser.ast.expr.DoubleLiteralExpr;
-import com.github.javaparser.ast.expr.EnclosedExpr;
 import com.github.javaparser.ast.expr.Expression;
-import com.github.javaparser.ast.expr.FieldAccessExpr;
-import com.github.javaparser.ast.expr.InstanceOfExpr;
 import com.github.javaparser.ast.expr.IntegerLiteralExpr;
-import com.github.javaparser.ast.expr.IntegerLiteralMinValueExpr;
-import com.github.javaparser.ast.expr.LambdaExpr;
-import com.github.javaparser.ast.expr.LongLiteralExpr;
-import com.github.javaparser.ast.expr.LongLiteralMinValueExpr;
-import com.github.javaparser.ast.expr.MarkerAnnotationExpr;
-import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.MethodCallExpr;
-import com.github.javaparser.ast.expr.MethodReferenceExpr;
 import com.github.javaparser.ast.expr.NameExpr;
-import com.github.javaparser.ast.expr.NormalAnnotationExpr;
-import com.github.javaparser.ast.expr.NullLiteralExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
-import com.github.javaparser.ast.expr.QualifiedNameExpr;
-import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
-import com.github.javaparser.ast.expr.SuperExpr;
-import com.github.javaparser.ast.expr.ThisExpr;
-import com.github.javaparser.ast.expr.TypeExpr;
-import com.github.javaparser.ast.expr.UnaryExpr;
-import com.github.javaparser.ast.expr.VariableDeclarationExpr;
-import com.github.javaparser.ast.stmt.AssertStmt;
-import com.github.javaparser.ast.stmt.BlockStmt;
-import com.github.javaparser.ast.stmt.BreakStmt;
-import com.github.javaparser.ast.stmt.CatchClause;
-import com.github.javaparser.ast.stmt.ContinueStmt;
-import com.github.javaparser.ast.stmt.DoStmt;
-import com.github.javaparser.ast.stmt.EmptyStmt;
-import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
-import com.github.javaparser.ast.stmt.ExpressionStmt;
-import com.github.javaparser.ast.stmt.ForStmt;
-import com.github.javaparser.ast.stmt.ForeachStmt;
-import com.github.javaparser.ast.stmt.IfStmt;
-import com.github.javaparser.ast.stmt.LabeledStmt;
-import com.github.javaparser.ast.stmt.ReturnStmt;
-import com.github.javaparser.ast.stmt.SwitchEntryStmt;
-import com.github.javaparser.ast.stmt.SwitchStmt;
-import com.github.javaparser.ast.stmt.SynchronizedStmt;
-import com.github.javaparser.ast.stmt.ThrowStmt;
-import com.github.javaparser.ast.stmt.TryStmt;
-import com.github.javaparser.ast.stmt.TypeDeclarationStmt;
-import com.github.javaparser.ast.stmt.WhileStmt;
-import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
-import com.github.javaparser.ast.type.IntersectionType;
-import com.github.javaparser.ast.type.PrimitiveType;
-import com.github.javaparser.ast.type.TypeParameter;
-import com.github.javaparser.ast.type.UnionType;
-import com.github.javaparser.ast.type.UnknownType;
-import com.github.javaparser.ast.type.VoidType;
-import com.github.javaparser.ast.type.WildcardType;
-import com.github.javaparser.ast.visitor.GenericVisitor;
 import com.github.javaparser.ast.visitor.ModifierVisitorAdapter;
 
 public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 	private List<Parameter> formals;
-	private List<Parameter> closureFormals;
+	private List<String> stack;
+	private Map<String, List<String>> stacks;
+	private Map<String, List<String>> dependencies;
+	private String newName;
+	private Map<String, Expression> localInitializations = new HashMap<>();
 
-	public ReplaceVarsVisitor(List<Parameter> formals, List<Parameter> closureFormals) {
+	public ReplaceVarsVisitor(String newName, List<Parameter> formals, List<String> stack, Map<String, List<String>> stacks, Map<String, List<String>> dependencies) {
 		this.formals = formals;
-		this.closureFormals = closureFormals;
+		this.stack = stack;
+		this.stacks = stacks;
+		this.dependencies = dependencies;
+		this.newName = newName;
+		
 	}
 
 	Object formalToValue(String name, Object[] args) {
@@ -128,6 +60,16 @@ public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 	}
 	
 	@Override
+	public Node visit(ObjectCreationExpr call, Object[] args) {
+		if (call.getType().getName().equals("Env")) {
+			List<Expression> newArgs = call.getArgs().stream().map(a -> (Expression) a.accept(this, args)).collect(Collectors.toList());
+			call.setArgs(newArgs);
+			localInitializations.put(((StringLiteralExpr) call.getArgs().get(0)).getValue(), call.getArgs().get(1));
+		}
+		return call;
+	}
+
+	@Override
 	public Node visit(MethodCallExpr call, Object[] args) {
 		System.out.println(call);
 		if (call.getScope() == null) {
@@ -135,11 +77,22 @@ public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 			return call;
 		}
 		System.out.println(call.getScope().getClass());
-		System.out.println(((NameExpr)call.getScope()).getName());
+		//System.out.println(((NameExpr)call.getScope()).getName());
 		System.out.println(formals);
+		
 		List<Expression> newArgs = call.getArgs().stream().map(a -> (Expression) a.accept(this, args)).collect(Collectors.toList());
 		call.setArgs(newArgs);
 		if (call.getScope() instanceof NameExpr) {
+			
+			// TODO: naive assumption: every method named lookup is an environment lookup)
+			if (call.getName().equals("lookup") && call.getArgs().size() == 1){
+				if (call.getArgs().get(0) instanceof StringLiteralExpr){
+					String varName = "__" + ((NameExpr)call.getScope()).getName() + "__" + ((StringLiteralExpr) call.getArgs().get(0)).getValue();
+					stack.add(varName);
+					return new NameExpr(varName);
+				}
+			}
+			
 			// TODO: && call.getName().equals(eval);
 			// and getScope() is one of the static paarms.
 			// so we have l.eval(env),
@@ -149,9 +102,11 @@ public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 			//int i = kids.indexOf(call);
 			//System.out.println("Call index " + i);
 			//kids.remove(i);
+			
 			try {
 				Object val = formalToValue(((NameExpr)call.getScope()).getName(), args);
 				System.out.println("VAL = " + val);
+				
 				return val2node(val, newArgs); 
 			}
 			catch (NoSuchElementException e) {
@@ -182,18 +137,41 @@ public class ReplaceVarsVisitor extends ModifierVisitorAdapter<Object[]> {
 			//call.setArgs(args); // this must be env etc.
 			//call.setArgs(closureFormals.stream().map(p -> new NameExpr(p.getName()))
 			//	.collect(Collectors.toList()));
-			call.setArgs(newArgs[0]);
+			
+			dependencies.get(newName).add(m.getName());
+			
+			if (stacks.containsKey(m.getName())){
+				call.setArgs(
+						stacks.get(m.getName()).stream().map(str -> new NameExpr(str)).collect(Collectors.toList()));
+			}
+			else{
+				call.setArgs(newArgs[0]);
+			}
 			call.setName(m.getName());
 			return call;
 		}
 		else {
-			if (val instanceof Integer) {
-				return new IntegerLiteralExpr(val.toString());
-			}
-			if (val instanceof String) {
-				return new StringLiteralExpr((String)val);
-			}
-			throw new AssertionError("not implemented literal " + val);
+			return toLiteral(val);
 		}
 	}
+
+	private Expression toLiteral(Object val) {
+		if (val instanceof Integer) {
+			return new IntegerLiteralExpr(val.toString());
+		}
+		if (val instanceof String) {
+			return new StringLiteralExpr((String)val);
+		}
+		if (val instanceof List){
+			List<Object> l = (List<Object>) val;
+			return new MethodCallExpr(new ClassExpr(new ClassOrInterfaceType("Arrays")), "asList", l.stream().map(v -> toLiteral(v)).collect(Collectors.toList()));
+		}
+		throw new AssertionError("not implemented literal " + val);
+	}
+
+	public Map<String, Expression> getLocalInitializations() {
+		return localInitializations;
+	}
+	
+	
 }
